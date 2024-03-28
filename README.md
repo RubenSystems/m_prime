@@ -1,2 +1,4 @@
 # M'
-An experimental programming language interpreter created for test reasons. 
+An experimental programming language interpreter. 
+
+Designed to test compiler optimisations.
