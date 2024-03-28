@@ -5,15 +5,21 @@ mod program;
 fn main() {
     let program = vec![
         Instruction::Var(0),
-        Instruction::Add(0, 1),
-        Instruction::OutputVar(0),
-        Instruction::PCSetIf {
-            variable_name: 0,
-            predicate: |x| x < 100,
-            jump_point: 1,
+        Instruction::SetReg {
+            register: 0,
+            constant: 100,
         },
+        Instruction::Store {
+            register: 0,
+            variable: 0,
+        },
+        Instruction::Load {
+            register: 0,
+            variable: 0,
+        },
+        Instruction::Output(0),
     ];
 
-    let mut process = Process::new(program);
+    let mut process = Process::new(program, 2);
     process.run();
 }

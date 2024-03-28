@@ -1,28 +1,57 @@
 use std::collections::HashMap;
 
 pub enum Instruction {
+    // Math
+    Add {
+        rega: usize,
+        regb: usize,
+        outreg: usize,
+    },
+    Sub {
+        rega: usize,
+        regb: usize,
+        outreg: usize,
+    },
+
+    // Memory operations
     Var(usize),
-    Add(usize, u32),
-    Sub(usize, u32),
+    Load {
+        register: usize,
+        variable: usize,
+    },
+    Store {
+        register: usize,
+        variable: usize,
+    },
+    SetReg {
+        register: usize,
+        constant: i32,
+    },
+
+    // Branching
     PCSetIf {
-        variable_name: usize,
-        predicate: fn(u32) -> bool,
+        register: usize,
+        predicate: fn(i32) -> bool,
         jump_point: usize,
     },
-    OutputVar(usize),
+
+    // IO
+    Output(usize),
 }
 
 pub struct Process {
     instructions: Vec<Instruction>,
     pc: usize,
-    memory: HashMap<usize, u32>,
+    registers: Vec<i32>,
+    memory: HashMap<usize, i32>,
 }
 
 impl Process {
-    pub fn new(instructions: Vec<Instruction>) -> Self {
+    pub fn new(instructions: Vec<Instruction>, register_count: usize) -> Self {
         Self {
             instructions,
             pc: 0,
+            registers: vec![0; register_count],
             memory: HashMap::new(),
         }
     }
@@ -34,42 +63,39 @@ impl Process {
             };
             self.pc += 1;
             match instruction {
+                Instruction::Add { rega, regb, outreg } => {
+                    self.registers[*outreg] = self.registers[*rega] + self.registers[*regb]
+                }
+                Instruction::SetReg { register, constant } => self.registers[*register] = *constant,
+                Instruction::Sub { rega, regb, outreg } => {
+                    self.registers[*outreg] = self.registers[*rega] - self.registers[*regb]
+                }
                 Instruction::Var(name) => {
                     self.memory.insert(*name, 0);
                 }
-                Instruction::Add(varname, inc_value) => {
-                    let current_value = self
+                Instruction::Load { register, variable } => {
+                    self.registers[*register] = *self
                         .memory
-                        .get_mut(varname)
-                        .expect(&format!("Undefined variable reference {varname}"));
-                    *current_value += inc_value;
+                        .get(variable)
+                        .expect("Could not find variable {variable}")
                 }
-                Instruction::Sub(varname, dec_value) => {
-                    let current_value = self
+                Instruction::Store { register, variable } => {
+                    *self
                         .memory
-                        .get_mut(varname)
-                        .expect(&format!("Undefined variable reference {varname}"));
-                    *current_value += dec_value;
+                        .get_mut(variable)
+                        .expect("Could not find variable {variable}") = self.registers[*register];
                 }
                 Instruction::PCSetIf {
-                    variable_name,
+                    register,
                     predicate,
                     jump_point,
                 } => {
-                    let current_value = self
-                        .memory
-                        .get(variable_name)
-                        .expect(&format!("Undefined variable reference {variable_name}"));
-                    if predicate(*current_value) {
+                    if predicate(self.registers[*register]) {
                         self.pc = *jump_point;
                     }
                 }
-                Instruction::OutputVar(varname) => {
-                    let current_value = self
-                        .memory
-                        .get(varname)
-                        .expect(&format!("Undefined variable reference {varname}"));
-                    println!("Variable: {varname} = {current_value}")
+                Instruction::Output(register) => {
+                    println!("Register: {register} = {}", self.registers[*register]);
                 }
             }
         }
