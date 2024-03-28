@@ -1,2 +1,2 @@
-# m_prime
+# M'
 An experimental programming language interpreter created for test reasons. 
