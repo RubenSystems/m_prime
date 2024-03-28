@@ -1,2 +1,2 @@
-# m_prime
-An experimental programming language interpreter
+# M'
+An experimental programming language interpreter created for test reasons. 
