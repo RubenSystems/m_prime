@@ -1,5 +1,12 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fmt::{write, Debug, Display},
+    time::Instant,
+};
 
+const EXEC_AVG_COUNT: u128 = 10;
+
+#[derive(Clone, Copy, Debug)]
 pub enum Instruction {
     // Math
     Add {
@@ -39,29 +46,80 @@ pub enum Instruction {
     Output(usize),
 }
 
+impl Instruction {
+    pub fn cost(&self) -> usize {
+        match self {
+            Instruction::Add { rega, regb, outreg } => 1,
+            Instruction::Sub { rega, regb, outreg } => 1,
+            Instruction::Var(_) => 1,
+            Instruction::Load { register, variable } => 2,
+            Instruction::Store { register, variable } => 2,
+            Instruction::SetReg { register, constant } => 1,
+            Instruction::PCSetIf {
+                register,
+                predicate,
+                jump_point,
+            } => 10,
+            Instruction::Output(_) => 1,
+        }
+    }
+}
+
+pub struct Program(Vec<Instruction>);
+
+impl Program {
+    pub fn new(start: Vec<Instruction>) -> Self {
+        Program(start)
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Instruction> {
+        self.0.get(index)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn insert(&mut self, index: usize, element: Instruction) {
+        self.0.insert(index, element)
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        self.0.remove(index);
+    }
+}
+
 pub struct Process {
-    instructions: Vec<Instruction>,
     pc: usize,
     registers: Vec<i32>,
     memory: HashMap<usize, i32>,
 }
 
 impl Process {
-    pub fn new(instructions: Vec<Instruction>, register_count: usize) -> Self {
+    pub fn new(register_count: usize) -> Self {
         Self {
-            instructions,
             pc: 0,
             registers: vec![0; register_count],
             memory: HashMap::new(),
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn exe(&mut self, instructions: &Program) -> (usize, Vec<String>) {
+        self.pc = 0;
+        let mut cost = 0;
+        let mut output = vec![];
+        let mut its = 0;
         loop {
-            let Some(instruction) = self.instructions.get(self.pc) else {
+            let Some(instruction) = instructions.get(self.pc) else {
                 break;
             };
+            if its > 10000 {
+                break;
+            }
+
             self.pc += 1;
+            its += 1;
+            cost += instruction.cost();
             match instruction {
                 Instruction::Add { rega, regb, outreg } => {
                     self.registers[*outreg] = self.registers[*rega] + self.registers[*regb]
@@ -95,9 +153,13 @@ impl Process {
                     }
                 }
                 Instruction::Output(register) => {
-                    println!("Register: {register} = {}", self.registers[*register]);
+                    output.push(format!(
+                        "Register: {register} = {}",
+                        self.registers[*register]
+                    ));
                 }
             }
         }
+        (cost, output)
     }
 }
