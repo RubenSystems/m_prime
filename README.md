@@ -1,4 +1,4 @@
 # M'
-An experimental programming language interpreter. 
+An experimental bytecode interpreter. 
 
 Designed to test compiler optimisations.
