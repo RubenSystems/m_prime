@@ -65,7 +65,7 @@ fn main() {
         },
     ];
 
-    let mut monte = Monte::new(legal_operations, program, basis.1);
+    let _monte = Monte::new(legal_operations, program, basis.1);
 
     // let new_prog: Vec<String> = trace.0.iter().map(|x| format!("{x:?}")).collect();
     // println!("{}\n==\n {}", new_prog.join("\n"), trace.1);

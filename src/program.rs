@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
-    fmt::{write, Debug, Display},
-    time::Instant,
+    fmt::{Debug},
 };
 
 const EXEC_AVG_COUNT: u128 = 10;
@@ -49,16 +48,16 @@ pub enum Instruction {
 impl Instruction {
     pub fn cost(&self) -> usize {
         match self {
-            Instruction::Add { rega, regb, outreg } => 1,
-            Instruction::Sub { rega, regb, outreg } => 1,
+            Instruction::Add { rega: _, regb: _, outreg: _ } => 1,
+            Instruction::Sub { rega: _, regb: _, outreg: _ } => 1,
             Instruction::Var(_) => 1,
-            Instruction::Load { register, variable } => 2,
-            Instruction::Store { register, variable } => 2,
-            Instruction::SetReg { register, constant } => 1,
+            Instruction::Load { register: _, variable: _ } => 2,
+            Instruction::Store { register: _, variable: _ } => 2,
+            Instruction::SetReg { register: _, constant: _ } => 1,
             Instruction::PCSetIf {
-                register,
-                predicate,
-                jump_point,
+                register: _,
+                predicate: _,
+                jump_point: _,
             } => 10,
             Instruction::Output(_) => 1,
         }

@@ -33,8 +33,7 @@ use rand::{rngs::ThreadRng, Rng};
 
 use crate::{
     actions::Actions,
-    program::{Instruction, Process, Program},
-    reward::reward,
+    program::{Instruction, Program},
 };
 
 pub struct MonteTreeNode {
