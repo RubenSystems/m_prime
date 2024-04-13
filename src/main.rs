@@ -1,7 +1,9 @@
 use crate::program::{Instruction, Program};
-use program::{InstructionContainer, VirtualMachine};
+use program::InstructionContainer;
+use vm::VirtualMachine;
 
 mod program;
+mod vm;
 
 fn main() {
     let start = vec![
