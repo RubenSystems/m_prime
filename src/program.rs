@@ -1,7 +1,6 @@
 use crate::InstructionContainer;
 use std::{
-    collections::HashMap,
-    fmt::{format, write, Debug, Display},
+    fmt::{Display},
 };
 
 #[derive(Clone)]

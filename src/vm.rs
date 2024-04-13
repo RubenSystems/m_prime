@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    fmt::{format, write, Debug, Display},
 };
 
 use crate::Instruction;
