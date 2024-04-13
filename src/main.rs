@@ -1,13 +1,11 @@
-use crate::{monte::Monte, program::Program};
-use program::{Instruction, Process};
+use crate::program::{Instruction, Program};
+use program::{InstructionContainer, VirtualMachine};
 
-mod actions;
-mod monte;
 mod program;
-mod reward;
 
 fn main() {
-    let program = Program::new(vec![
+    let start = vec![
+        Instruction::Var(0),
         Instruction::SetReg {
             register: 0,
             constant: 0,
@@ -16,57 +14,53 @@ fn main() {
             register: 1,
             constant: 1,
         },
+        /*
+            Add 1
+        */
         Instruction::Add {
             rega: 0,
             regb: 1,
             outreg: 0,
         },
-        Instruction::PCSetIf {
+        Instruction::Store {
             register: 0,
-            predicate: |x| x < 1000,
-            jump_point: 2,
+            variable: 0,
+        },
+        /*
+            Add 2
+        */
+        Instruction::Load {
+            register: 0,
+            variable: 0,
+        },
+        Instruction::Add {
+            rega: 0,
+            regb: 1,
+            outreg: 0,
+        },
+        Instruction::Store {
+            register: 0,
+            variable: 0,
+        },
+        /*
+            Output val
+        */
+        Instruction::Load {
+            register: 0,
+            variable: 0,
         },
         Instruction::Output(0),
-    ]);
+    ];
+    let program = Program::new(
+        start
+            .into_iter()
+            .map(|x| InstructionContainer::new(x))
+            .collect(),
+    );
 
-    let mut process = Process::new(2);
+    let mut process = VirtualMachine::new(3);
     let basis = process.exe(&program);
     println!("{basis:?}");
-
-    let legal_operations = vec![
-        Instruction::Add {
-            rega: 0,
-            regb: 1,
-            outreg: 0,
-        },
-        Instruction::SetReg {
-            register: 0,
-            constant: 10,
-        },
-        Instruction::SetReg {
-            register: 1,
-            constant: 10,
-        },
-        Instruction::SetReg {
-            register: 0,
-            constant: 1,
-        },
-        Instruction::SetReg {
-            register: 1,
-            constant: 1,
-        },
-        Instruction::SetReg {
-            register: 0,
-            constant: 0,
-        },
-        Instruction::SetReg {
-            register: 1,
-            constant: 0,
-        },
-    ];
-
-    let _monte = Monte::new(legal_operations, program, basis.1);
-
-    // let new_prog: Vec<String> = trace.0.iter().map(|x| format!("{x:?}")).collect();
-    // println!("{}\n==\n {}", new_prog.join("\n"), trace.1);
+    println!("{program}");
+    println!("{:?}", process.instruction_counter);
 }

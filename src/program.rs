@@ -1,9 +1,21 @@
 use std::{
     collections::HashMap,
-    fmt::{Debug},
+    fmt::{format, write, Debug, Display},
 };
 
-const EXEC_AVG_COUNT: u128 = 10;
+static mut INSTR_ID: usize = 0;
+
+fn generate_new_id() -> usize {
+    let tmp = unsafe { INSTR_ID };
+    unsafe { INSTR_ID += 1 };
+    return tmp;
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct InstructionContainer {
+    code: Instruction,
+    id: usize,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum Instruction {
@@ -35,9 +47,8 @@ pub enum Instruction {
     },
 
     // Branching
-    PCSetIf {
+    PCSetIfNotZero {
         register: usize,
-        predicate: fn(i32) -> bool,
         jump_point: usize,
     },
 
@@ -45,18 +56,41 @@ pub enum Instruction {
     Output(usize),
 }
 
-impl Instruction {
+impl InstructionContainer {
+    pub fn new(code: Instruction) -> Self {
+        Self {
+            code,
+            id: generate_new_id(),
+        }
+    }
+
     pub fn cost(&self) -> usize {
-        match self {
-            Instruction::Add { rega: _, regb: _, outreg: _ } => 1,
-            Instruction::Sub { rega: _, regb: _, outreg: _ } => 1,
+        match self.code {
+            Instruction::Add {
+                rega: _,
+                regb: _,
+                outreg: _,
+            } => 1,
+            Instruction::Sub {
+                rega: _,
+                regb: _,
+                outreg: _,
+            } => 1,
             Instruction::Var(_) => 1,
-            Instruction::Load { register: _, variable: _ } => 2,
-            Instruction::Store { register: _, variable: _ } => 2,
-            Instruction::SetReg { register: _, constant: _ } => 1,
-            Instruction::PCSetIf {
+            Instruction::Load {
                 register: _,
-                predicate: _,
+                variable: _,
+            } => 2,
+            Instruction::Store {
+                register: _,
+                variable: _,
+            } => 2,
+            Instruction::SetReg {
+                register: _,
+                constant: _,
+            } => 1,
+            Instruction::PCSetIfNotZero {
+                register: _,
                 jump_point: _,
             } => 10,
             Instruction::Output(_) => 1,
@@ -64,14 +98,22 @@ impl Instruction {
     }
 }
 
-pub struct Program(Vec<Instruction>);
+#[derive(Clone)]
+pub struct Program(Vec<InstructionContainer>);
+
+impl Display for Program {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let msg: Vec<String> = self.0.iter().map(|x| format!("{:?}", x.code)).collect();
+        write!(f, "==\n{}\n==", msg.join("\n"))
+    }
+}
 
 impl Program {
-    pub fn new(start: Vec<Instruction>) -> Self {
+    pub fn new(start: Vec<InstructionContainer>) -> Self {
         Program(start)
     }
 
-    pub fn get(&self, index: usize) -> Option<&Instruction> {
+    pub fn get(&self, index: usize) -> Option<&InstructionContainer> {
         self.0.get(index)
     }
 
@@ -79,7 +121,7 @@ impl Program {
         self.0.len()
     }
 
-    pub fn insert(&mut self, index: usize, element: Instruction) {
+    pub fn insert(&mut self, index: usize, element: InstructionContainer) {
         self.0.insert(index, element)
     }
 
@@ -88,44 +130,53 @@ impl Program {
     }
 }
 
-pub struct Process {
-    pc: usize,
+pub struct VirtualMachine {
     registers: Vec<i32>,
     memory: HashMap<usize, i32>,
+    pub instruction_counter: HashMap<usize, i32>,
 }
 
-impl Process {
+impl VirtualMachine {
     pub fn new(register_count: usize) -> Self {
         Self {
-            pc: 0,
             registers: vec![0; register_count],
             memory: HashMap::new(),
+            instruction_counter: HashMap::new(),
         }
     }
 
     pub fn exe(&mut self, instructions: &Program) -> (usize, Vec<String>) {
-        self.pc = 0;
+        let mut pc = 0;
         let mut cost = 0;
         let mut output = vec![];
         let mut its = 0;
         loop {
-            let Some(instruction) = instructions.get(self.pc) else {
+            let Some(instruction) = instructions.get(pc) else {
                 break;
             };
             if its > 10000 {
+                println!("[VM] - killed: too many runs");
                 break;
             }
 
-            self.pc += 1;
+            pc += 1;
             its += 1;
             cost += instruction.cost();
-            match instruction {
+
+            self.instruction_counter.insert(
+                instruction.id,
+                self.instruction_counter.get(&instruction.id).unwrap_or(&0) + 1,
+            );
+
+            match &instruction.code {
                 Instruction::Add { rega, regb, outreg } => {
                     self.registers[*outreg] = self.registers[*rega] + self.registers[*regb]
                 }
                 Instruction::SetReg { register, constant } => self.registers[*register] = *constant,
                 Instruction::Sub { rega, regb, outreg } => {
-                    self.registers[*outreg] = self.registers[*rega] - self.registers[*regb]
+                    let ina = self.registers[*rega];
+                    let inb = self.registers[*regb];
+                    self.registers[*outreg] = ina - inb;
                 }
                 Instruction::Var(name) => {
                     self.memory.insert(*name, 0);
@@ -142,13 +193,12 @@ impl Process {
                         .get_mut(variable)
                         .expect("Could not find variable {variable}") = self.registers[*register];
                 }
-                Instruction::PCSetIf {
+                Instruction::PCSetIfNotZero {
                     register,
-                    predicate,
                     jump_point,
                 } => {
-                    if predicate(self.registers[*register]) {
-                        self.pc = *jump_point;
+                    if self.registers[*register] != 0 {
+                        pc = *jump_point;
                     }
                 }
                 Instruction::Output(register) => {
