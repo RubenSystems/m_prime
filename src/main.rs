@@ -1,7 +1,10 @@
-use crate::program::{Instruction, Program};
-use program::InstructionContainer;
+use crate::instruction_container::InstructionContainer;
+use crate::program::Program;
+use instruction::Instruction;
 use vm::VirtualMachine;
 
+mod instruction;
+mod instruction_container;
 mod program;
 mod vm;
 
