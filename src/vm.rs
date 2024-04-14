@@ -1,92 +1,92 @@
-use std::{
-    collections::HashMap,
-};
+use std::collections::HashMap;
 
 use crate::Instruction;
 use crate::Program;
 
 pub struct VirtualMachine {
-    registers: Vec<i32>,
-    memory: HashMap<usize, i32>,
-    pub instruction_counter: HashMap<usize, i32>,
+    register_count: usize,
+}
+
+#[derive(Debug)]
+pub enum ExecutionError {
+    VariableNotFound,
+    Timeout,
 }
 
 impl VirtualMachine {
     pub fn new(register_count: usize) -> Self {
-        Self {
-            registers: vec![0; register_count],
-            memory: HashMap::new(),
-            instruction_counter: HashMap::new(),
-        }
+        Self { register_count }
     }
 
-    pub fn exe(&mut self, instructions: &Program) -> (usize, Vec<String>) {
+    pub fn exe(&mut self, instructions: &Program) -> Result<(usize, Vec<String>), ExecutionError> {
         let mut pc = 0;
         let mut cost = 0;
         let mut output = vec![];
         let mut its = 0;
+
+        let mut registers = vec![0; self.register_count];
+        let mut memory = HashMap::new();
+        let mut instruction_counter = HashMap::new();
+
         loop {
             let Some(instruction) = instructions.get(pc) else {
                 break;
             };
             if its > 10000 {
-                println!("[VM] - killed: too many runs");
-                break;
+                return Err(ExecutionError::Timeout);
             }
 
             pc += 1;
             its += 1;
             cost += instruction.cost();
 
-            self.instruction_counter.insert(
+            instruction_counter.insert(
                 instruction.id(),
-                self.instruction_counter
-                    .get(&instruction.id())
-                    .unwrap_or(&0)
-                    + 1,
+                instruction_counter.get(&instruction.id()).unwrap_or(&0) + 1,
             );
 
             match &instruction.code() {
                 Instruction::Add { rega, regb, outreg } => {
-                    self.registers[*outreg] = self.registers[*rega] + self.registers[*regb]
+                    registers[*outreg] = registers[*rega] + registers[*regb]
                 }
-                Instruction::SetReg { register, constant } => self.registers[*register] = *constant,
+                Instruction::SetReg { register, constant } => registers[*register] = *constant,
                 Instruction::Sub { rega, regb, outreg } => {
-                    let ina = self.registers[*rega];
-                    let inb = self.registers[*regb];
-                    self.registers[*outreg] = ina - inb;
+                    let ina = registers[*rega];
+                    let inb = registers[*regb];
+
+                    registers[*outreg] = ina - inb;
                 }
                 Instruction::Var(name) => {
-                    self.memory.insert(*name, 0);
+                    memory.insert(*name, 0);
                 }
                 Instruction::Load { register, variable } => {
-                    self.registers[*register] = *self
-                        .memory
-                        .get(variable)
-                        .expect("Could not find variable {variable}")
+                    registers[*register] = match memory.get(variable) {
+                        Some(e) => *e,
+                        None => return Err(ExecutionError::VariableNotFound),
+                    }
                 }
                 Instruction::Store { register, variable } => {
-                    *self
-                        .memory
-                        .get_mut(variable)
-                        .expect("Could not find variable {variable}") = self.registers[*register];
+                    // *memory
+                    //     .get_mut(variable)
+                    //     .expect("Could not find variable {variable}") = registers[*register];
+                    match memory.get_mut(variable) {
+                        Some(e) => *e = registers[*register],
+                        None => return Err(ExecutionError::VariableNotFound),
+                    }
                 }
                 Instruction::PCSetIfNotZero {
                     register,
                     jump_point,
                 } => {
-                    if self.registers[*register] != 0 {
+                    if registers[*register] != 0 {
                         pc = *jump_point;
                     }
                 }
                 Instruction::Output(register) => {
-                    output.push(format!(
-                        "Register: {register} = {}",
-                        self.registers[*register]
-                    ));
+                    output.push(format!("Register: {register} = {}", registers[*register]));
                 }
             }
         }
-        (cost, output)
+        Ok((cost, output))
     }
 }

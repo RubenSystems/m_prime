@@ -1,10 +1,12 @@
 use crate::instruction_container::InstructionContainer;
+use crate::op_finder::mcts;
 use crate::program::Program;
 use instruction::Instruction;
 use vm::VirtualMachine;
 
 mod instruction;
 mod instruction_container;
+mod op_finder;
 mod program;
 mod vm;
 
@@ -56,16 +58,12 @@ fn main() {
         },
         Instruction::Output(0),
     ];
-    let program = Program::new(
-        start
-            .into_iter()
-            .map(|x| InstructionContainer::new(x))
-            .collect(),
-    );
+    let program = Program::new(start);
 
     let mut process = VirtualMachine::new(3);
-    let basis = process.exe(&program);
+    let basis = process.exe(&program).expect("Error in root");
     println!("{basis:?}");
     println!("{program}");
-    println!("{:?}", process.instruction_counter);
+
+    mcts(program, &mut process, &basis);
 }

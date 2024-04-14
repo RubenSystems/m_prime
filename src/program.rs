@@ -1,21 +1,25 @@
+use crate::Instruction;
 use crate::InstructionContainer;
-use std::{
-    fmt::{Display},
-};
+use std::fmt::Display;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Program(Vec<InstructionContainer>);
 
 impl Display for Program {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let msg: Vec<String> = self.0.iter().map(|x| format!("{:?}", x.code())).collect();
-        write!(f, "==\n{}\n==", msg.join("\n"))
+        write!(f, "{}", msg.join("\n"))
     }
 }
 
 impl Program {
-    pub fn new(start: Vec<InstructionContainer>) -> Self {
-        Program(start)
+    pub fn new(start: Vec<Instruction>) -> Self {
+        Program(
+            start
+                .into_iter()
+                .map(|x| InstructionContainer::new(x))
+                .collect(),
+        )
     }
 
     pub fn get(&self, index: usize) -> Option<&InstructionContainer> {

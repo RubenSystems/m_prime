@@ -8,7 +8,7 @@ fn generate_new_id() -> usize {
     return tmp;
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct InstructionContainer {
     code: Instruction,
     id: usize,
