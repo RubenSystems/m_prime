@@ -27,6 +27,16 @@ pub enum Instruction {
         constant: i32,
     },
 
+    //SIMD
+    VecAdd {
+        a1r: usize,
+        b1r: usize,
+        r1: usize,
+        a2r: usize,
+        b2r: usize,
+        r2: usize,
+    },
+
     // Branching
     PCSetIfNotZero {
         register: usize,

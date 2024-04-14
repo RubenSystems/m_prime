@@ -12,6 +12,7 @@ pub struct VirtualMachine {
 pub enum ExecutionError {
     VariableNotFound,
     Timeout,
+    OverflowArithmatic,
 }
 
 impl VirtualMachine {
@@ -48,14 +49,21 @@ impl VirtualMachine {
 
             match &instruction.code() {
                 Instruction::Add { rega, regb, outreg } => {
-                    registers[*outreg] = registers[*rega] + registers[*regb]
+                    let ra: i32 = registers[*rega];
+                    let x: i32 = match ra.checked_add(registers[*regb]) {
+                        Some(v) => v,
+                        None => return Err(ExecutionError::OverflowArithmatic),
+                    };
+                    registers[*outreg] = x;
                 }
                 Instruction::SetReg { register, constant } => registers[*register] = *constant,
                 Instruction::Sub { rega, regb, outreg } => {
-                    let ina = registers[*rega];
-                    let inb = registers[*regb];
-
-                    registers[*outreg] = ina - inb;
+                    let ra: i32 = registers[*rega];
+                    let x: i32 = match ra.checked_sub(registers[*regb]) {
+                        Some(v) => v,
+                        None => return Err(ExecutionError::OverflowArithmatic),
+                    };
+                    registers[*outreg] = x;
                 }
                 Instruction::Var(name) => {
                     memory.insert(*name, 0);
@@ -80,6 +88,29 @@ impl VirtualMachine {
                 }
                 Instruction::Output(register) => {
                     output.push(format!("Register: {register} = {}", registers[*register]));
+                }
+                Instruction::VecAdd {
+                    a1r,
+                    b1r,
+                    r1,
+                    a2r,
+                    b2r,
+                    r2,
+                } => {
+                    let ra: i32 = registers[*a1r];
+                    let res1: i32 = match ra.checked_sub(registers[*b1r]) {
+                        Some(v) => v,
+                        None => return Err(ExecutionError::OverflowArithmatic),
+                    };
+
+                    let rb: i32 = registers[*a2r];
+                    let res2: i32 = match rb.checked_sub(registers[*b2r]) {
+                        Some(v) => v,
+                        None => return Err(ExecutionError::OverflowArithmatic),
+                    };
+
+                    registers[*r1] = res1;
+                    registers[*r2] = res2;
                 }
             }
         }

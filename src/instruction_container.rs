@@ -60,6 +60,14 @@ impl InstructionContainer {
                 jump_point: _,
             } => 10,
             Instruction::Output(_) => 1,
+            Instruction::VecAdd {
+                a1r,
+                b1r,
+                r1,
+                a2r,
+                b2r,
+                r2,
+            } => 1,
         }
     }
 }

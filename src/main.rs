@@ -1,7 +1,7 @@
 use crate::instruction_container::InstructionContainer;
 use crate::op_finder::mcts;
 use crate::program::Program;
-use crate::programs::{add_two, count_to_x};
+use crate::programs::{add_two, count_to_x, vecmul};
 use instruction::Instruction;
 use vm::VirtualMachine;
 
@@ -13,9 +13,9 @@ mod programs;
 mod vm;
 
 fn main() {
-    let program = count_to_x::prog(1000);
+    let program = vecmul::prog();
 
-    let mut process = VirtualMachine::new(3);
+    let mut process = VirtualMachine::new(4);
     let basis = process.exe(&program).expect("Error in root");
     println!("{basis:?}");
     println!("{program}");

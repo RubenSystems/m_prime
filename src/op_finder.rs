@@ -58,7 +58,7 @@ impl ProgramState {
         // Replacements
         for i in 0..self.program.len() {
             let mut p = self.program.clone();
-            p.remove(i);
+            let instr = p.remove(i);
 
             for rep in vec![
                 Instruction::Add {
@@ -81,9 +81,83 @@ impl ProgramState {
                     regb: 0,
                     outreg: 1,
                 },
+                Instruction::VecAdd {
+                    a1r: 0,
+                    b1r: 1,
+                    r1: 0,
+                    a2r: 2,
+                    b2r: 3,
+                    r2: 1,
+                },
+                Instruction::VecAdd {
+                    a1r: 0,
+                    b1r: 1,
+                    r1: 1,
+                    a2r: 2,
+                    b2r: 3,
+                    r2: 0,
+                },
             ] {
                 let mut p_c = p.clone();
                 p_c.insert(i, InstructionContainer::new(rep));
+                if let Some(m) = Self::new(p_c, vm) {
+                    new_moves.push(m);
+                }
+            }
+
+            // Fill out other registers
+            if let Instruction::Load {
+                register: _,
+                variable,
+            } = instr
+            {
+                let mut p_c = p.clone();
+                p_c.insert(
+                    i,
+                    InstructionContainer::new(Instruction::Load {
+                        register: 2,
+                        variable: variable,
+                    }),
+                );
+                if let Some(m) = Self::new(p_c, vm) {
+                    new_moves.push(m);
+                }
+                let mut p_c = p.clone();
+                p_c.insert(
+                    i,
+                    InstructionContainer::new(Instruction::Load {
+                        register: 3,
+                        variable: variable,
+                    }),
+                );
+                if let Some(m) = Self::new(p_c, vm) {
+                    new_moves.push(m);
+                }
+            }
+            if let Instruction::Store {
+                register: _,
+                variable,
+            } = instr
+            {
+                let mut p_c = p.clone();
+                p_c.insert(
+                    i,
+                    InstructionContainer::new(Instruction::Store {
+                        register: 2,
+                        variable,
+                    }),
+                );
+                if let Some(m) = Self::new(p_c, vm) {
+                    new_moves.push(m);
+                }
+                let mut p_c = p.clone();
+                p_c.insert(
+                    i,
+                    InstructionContainer::new(Instruction::Store {
+                        register: 3,
+                        variable,
+                    }),
+                );
                 if let Some(m) = Self::new(p_c, vm) {
                     new_moves.push(m);
                 }
@@ -134,7 +208,7 @@ pub fn mcts(
     let mut root = Node::new(ProgramState::new(program, vm).expect("Error in root"));
     let best_run = u32::MIN;
     let mut best_out: Option<(u32, Option<Program>)> = None;
-    for epoch in 1..10 {
+    for epoch in 1..5000 {
         let run = mcts_node(&mut root, vm, real);
         if run.0 > best_run {
             best_out = Some(run);
@@ -193,7 +267,7 @@ fn mcts_simulate(
 
     let mut max_program: Option<Program> = None;
 
-    for _ in 0..300 {
+    for _ in 0..500 {
         let next_states = rollout_state.next_moves(vm);
 
         if next_states.is_empty() {
