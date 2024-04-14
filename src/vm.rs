@@ -1,7 +1,8 @@
-use std::collections::HashMap;
-
 use crate::Instruction;
 use crate::Program;
+use std::collections::HashMap;
+
+const TIMEOUT: usize = 10000;
 
 pub struct VirtualMachine {
     register_count: usize,
@@ -32,7 +33,7 @@ impl VirtualMachine {
             let Some(instruction) = instructions.get(pc) else {
                 break;
             };
-            if its > 10000 {
+            if its > TIMEOUT {
                 return Err(ExecutionError::Timeout);
             }
 
@@ -65,15 +66,10 @@ impl VirtualMachine {
                         None => return Err(ExecutionError::VariableNotFound),
                     }
                 }
-                Instruction::Store { register, variable } => {
-                    // *memory
-                    //     .get_mut(variable)
-                    //     .expect("Could not find variable {variable}") = registers[*register];
-                    match memory.get_mut(variable) {
-                        Some(e) => *e = registers[*register],
-                        None => return Err(ExecutionError::VariableNotFound),
-                    }
-                }
+                Instruction::Store { register, variable } => match memory.get_mut(variable) {
+                    Some(e) => *e = registers[*register],
+                    None => return Err(ExecutionError::VariableNotFound),
+                },
                 Instruction::PCSetIfNotZero {
                     register,
                     jump_point,

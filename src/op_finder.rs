@@ -36,12 +36,12 @@ impl ProgramState {
 
     pub fn reward(&self, real: &(usize, Vec<String>)) -> isize {
         if self.is_more_optimal(real.0) && self.is_correct(&real.1) {
-            println!(
-                "== FOUND CORRECT && OPTIMAL ALGO, diff {}\nOUT: {}",
-                real.0 - self.out.0,
-                self.out.1.join(" | ")
-            );
-            println!("{}\n==", self.program);
+            // println!(
+            //     "== FOUND CORRECT && OPTIMAL ALGO, diff {}\nOUT: {}",
+            //     real.0 - self.out.0,
+            //     self.out.1.join(" | ")
+            // );
+            // println!("{}\n==", self.program);
             return (real.0 as isize) - (self.out.0 as isize);
         } else {
             return -100;
@@ -96,15 +96,28 @@ impl Node {
     }
 }
 
-pub fn mcts(program: Program, vm: &mut VirtualMachine, real: &(usize, Vec<String>)) {
+pub fn mcts(
+    program: Program,
+    vm: &mut VirtualMachine,
+    real: &(usize, Vec<String>),
+) -> Option<(u32, Option<Program>)> {
     let mut root = Node::new(ProgramState::new(program, vm).expect("Error in root"));
-
+    let best_run = u32::MIN;
+    let mut best_out: Option<(u32, Option<Program>)> = None;
     for _ in 1..10_000 {
-        mcts_node(&mut root, vm, real);
+        let run = mcts_node(&mut root, vm, real);
+        if run.0 > best_run {
+            best_out = Some(run);
+        }
     }
+    best_out
 }
 
-fn mcts_node(node: &mut Node, vm: &mut VirtualMachine, real: &(usize, Vec<String>)) -> u32 {
+fn mcts_node(
+    node: &mut Node,
+    vm: &mut VirtualMachine,
+    real: &(usize, Vec<String>),
+) -> (u32, Option<Program>) {
     let better = if node.leaf() {
         // Expand, simulate
         let new_states = node.state.next_moves(vm);
@@ -116,7 +129,7 @@ fn mcts_node(node: &mut Node, vm: &mut VirtualMachine, real: &(usize, Vec<String
         }
         let random_action = node.children.iter_mut().choose(&mut thread_rng()).unwrap();
         let reward = mcts_simulate(random_action.1, vm, real);
-        reward.max(0) as u32
+        (reward.0.max(0) as u32, reward.1)
     } else {
         let best_child = node
             .children
@@ -132,16 +145,22 @@ fn mcts_node(node: &mut Node, vm: &mut VirtualMachine, real: &(usize, Vec<String
         mcts_node(best_child, vm, real)
     };
     node.visits += 1;
-    node.wins = better;
+    node.wins = better.0;
 
     better
 }
 
-fn mcts_simulate(node: &mut Node, vm: &mut VirtualMachine, real: &(usize, Vec<String>)) -> isize {
+fn mcts_simulate(
+    node: &mut Node,
+    vm: &mut VirtualMachine,
+    real: &(usize, Vec<String>),
+) -> (isize, Option<Program>) {
     let mut rollout_state = node.state.clone();
     let mut max_reward = isize::MIN;
 
-    for _ in 0..2000 {
+    let mut max_program: Option<Program> = None;
+
+    for _ in 0..300 {
         let next_states = rollout_state.next_moves(vm);
 
         if next_states.is_empty() {
@@ -152,8 +171,16 @@ fn mcts_simulate(node: &mut Node, vm: &mut VirtualMachine, real: &(usize, Vec<St
         // .choose(&mut thread_rng())
         // .unwrap();
         rollout_state = next_state;
-        max_reward = max_reward.max(rollout_state.reward(real))
+
+        let new_r = rollout_state.reward(real);
+        if new_r > max_reward && new_r > 0 {
+            max_reward = new_r;
+            max_program = Some(rollout_state.program.clone());
+        } else if new_r > max_reward {
+            max_reward = new_r
+        }
+        // max_reward =
     }
 
-    max_reward
+    (max_reward, max_program)
 }

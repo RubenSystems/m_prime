@@ -65,5 +65,11 @@ fn main() {
     println!("{basis:?}");
     println!("{program}");
 
-    mcts(program, &mut process, &basis);
+    let op = mcts(program, &mut process, &basis);
+    println!("=============");
+    if let Some(op) = op {
+        println!("Optimised!");
+        println!("Optimisation amount: {}", op.0);
+        println!("Optimised program: \n\n{}\n", op.1.unwrap());
+    }
 }
