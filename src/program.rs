@@ -34,7 +34,7 @@ impl Program {
         self.0.insert(index, element)
     }
 
-    pub fn remove(&mut self, index: usize) {
-        self.0.remove(index);
+    pub fn remove(&mut self, index: usize) -> Instruction {
+        self.0.remove(index).code()
     }
 }

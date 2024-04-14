@@ -33,3 +33,28 @@ Output(0) # output v0
 ```
 
 This reduces the compiler's cost function from 14 to 4.
+
+An example larger optimisation is seen using a loop. The below is a loop that counts to 1000. It has some redundant operations (the variable decl at the top), however, everything else is needed for the loop.
+
+```
+Var(0)
+SetReg { register: 0, constant: 0 }
+SetReg { register: 1, constant: 1 }
+Add { rega: 0, regb: 1, outreg: 0 }
+SetReg { register: 1, constant: 1000 }
+Sub { rega: 0, regb: 1, outreg: 1 }
+PCSetIfNotZero { register: 1, jump_point: 2 }
+Output(0)
+```
+
+The MCTS optimiser will eliminate the loop entirely:
+
+```
+Add { rega: 0, regb: 1, outreg: 0 }
+Add { rega: 0, regb: 1, outreg: 0 }
+SetReg { register: 1, constant: 1000 }
+Add { rega: 1, regb: 0, outreg: 0 }
+Output(0)
+```
+
+The result of this optimisation is a 99% improvement on the compilers internal cost function.

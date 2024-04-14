@@ -1,3 +1,5 @@
+use crate::instruction::Instruction;
+use crate::instruction_container::InstructionContainer;
 use crate::Program;
 use crate::VirtualMachine;
 use rand::prelude::*;
@@ -36,12 +38,6 @@ impl ProgramState {
 
     pub fn reward(&self, real: &(usize, Vec<String>)) -> isize {
         if self.is_more_optimal(real.0) && self.is_correct(&real.1) {
-            // println!(
-            //     "== FOUND CORRECT && OPTIMAL ALGO, diff {}\nOUT: {}",
-            //     real.0 - self.out.0,
-            //     self.out.1.join(" | ")
-            // );
-            // println!("{}\n==", self.program);
             return (real.0 as isize) - (self.out.0 as isize);
         } else {
             return -100;
@@ -51,12 +47,46 @@ impl ProgramState {
     pub fn next_moves(&self, vm: &mut VirtualMachine) -> Vec<Self> {
         let mut new_moves = vec![];
 
-        // removals
+        // Removals
         for i in 0..self.program.len() {
             let mut p = self.program.clone();
             p.remove(i);
             if let Some(m) = Self::new(p, vm) {
                 new_moves.push(m);
+            }
+        }
+        // Replacements
+        for i in 0..self.program.len() {
+            let mut p = self.program.clone();
+            p.remove(i);
+
+            for rep in vec![
+                Instruction::Add {
+                    rega: 0,
+                    regb: 1,
+                    outreg: 0,
+                },
+                Instruction::Add {
+                    rega: 1,
+                    regb: 0,
+                    outreg: 0,
+                },
+                Instruction::Add {
+                    rega: 1,
+                    regb: 0,
+                    outreg: 1,
+                },
+                Instruction::Add {
+                    rega: 1,
+                    regb: 0,
+                    outreg: 1,
+                },
+            ] {
+                let mut p_c = p.clone();
+                p_c.insert(i, InstructionContainer::new(rep));
+                if let Some(m) = Self::new(p_c, vm) {
+                    new_moves.push(m);
+                }
             }
         }
 
@@ -104,10 +134,13 @@ pub fn mcts(
     let mut root = Node::new(ProgramState::new(program, vm).expect("Error in root"));
     let best_run = u32::MIN;
     let mut best_out: Option<(u32, Option<Program>)> = None;
-    for _ in 1..10_000 {
+    for epoch in 1..10 {
         let run = mcts_node(&mut root, vm, real);
         if run.0 > best_run {
             best_out = Some(run);
+        }
+        if epoch % 100 == 0 {
+            println!("Epoch: {}", epoch / 100)
         }
     }
     best_out
@@ -168,8 +201,7 @@ fn mcts_simulate(
         }
 
         let next_state = next_states.choose(&mut thread_rng()).unwrap().clone();
-        // .choose(&mut thread_rng())
-        // .unwrap();
+
         rollout_state = next_state;
 
         let new_r = rollout_state.reward(real);
@@ -179,7 +211,6 @@ fn mcts_simulate(
         } else if new_r > max_reward {
             max_reward = new_r
         }
-        // max_reward =
     }
 
     (max_reward, max_program)
