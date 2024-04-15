@@ -1,5 +1,6 @@
 use crate::instruction::Instruction;
 use crate::instruction_container::InstructionContainer;
+use crate::vm::ExecutionError;
 use crate::Program;
 use crate::VirtualMachine;
 use rand::prelude::*;
@@ -8,23 +9,37 @@ use std::collections::HashMap;
 #[derive(Clone, PartialEq, Eq, Hash)]
 struct ProgramState {
     program: Program,
-    out: (usize, Vec<String>),
+    out: Option<(usize, Vec<String>)>,
 }
 
 impl ProgramState {
-    fn new(program: Program, vm: &mut VirtualMachine) -> Option<Self> {
-        let Ok(out) = vm.exe(&program) else {
-            return None;
-        };
+    fn new(program: Program) -> Self {
+        Self { out: None, program }
+    }
 
-        Some(Self { out, program })
+    fn exe(&mut self, vm: &mut VirtualMachine) -> Result<(), ExecutionError> {
+        match vm.exe(&self.program) {
+            Ok(o) => {
+                self.out = Some(o);
+                Ok(())
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    fn requires_exe(&self) -> bool {
+        self.out.is_none()
     }
 
     fn is_correct(&self, real: &Vec<String>) -> bool {
-        if self.out.1.len() != real.len() {
+        let Some(out) = &self.out else {
+            unreachable!("Attempted to eval an unexecuted program")
+        };
+
+        if out.1.len() != real.len() {
             return false;
         }
-        for (x, y) in real.iter().zip(self.out.1.iter()) {
+        for (x, y) in real.iter().zip(out.1.iter()) {
             if x != y {
                 return false;
             }
@@ -33,27 +48,32 @@ impl ProgramState {
     }
 
     fn is_more_optimal(&self, real: usize) -> bool {
-        self.out.0 < real
+        let Some(out) = &self.out else {
+            unreachable!("Attempted to eval an unexecuted program")
+        };
+        out.0 < real
     }
 
     pub fn reward(&self, real: &(usize, Vec<String>)) -> isize {
+        let Some(out) = &self.out else {
+            unreachable!("Attempted to eval an unexecuted program")
+        };
+
         if self.is_more_optimal(real.0) && self.is_correct(&real.1) {
-            return (real.0 as isize) - (self.out.0 as isize);
+            return (real.0 as isize) - (out.0 as isize);
         } else {
             return -100;
         }
     }
 
-    pub fn next_moves(&self, vm: &mut VirtualMachine) -> Vec<Self> {
+    pub fn next_moves(&self) -> Vec<Self> {
         let mut new_moves = vec![];
 
         // Removals
         for i in 0..self.program.len() {
             let mut p = self.program.clone();
             p.remove(i);
-            if let Some(m) = Self::new(p, vm) {
-                new_moves.push(m);
-            }
+            new_moves.push(Self::new(p));
         }
         // Replacements
         for i in 0..self.program.len() {
@@ -100,9 +120,7 @@ impl ProgramState {
             ] {
                 let mut p_c = p.clone();
                 p_c.insert(i, InstructionContainer::new(rep));
-                if let Some(m) = Self::new(p_c, vm) {
-                    new_moves.push(m);
-                }
+                new_moves.push(Self::new(p_c));
             }
 
             // Fill out other registers
@@ -116,23 +134,19 @@ impl ProgramState {
                     i,
                     InstructionContainer::new(Instruction::Load {
                         register: 2,
-                        variable: variable,
+                        variable,
                     }),
                 );
-                if let Some(m) = Self::new(p_c, vm) {
-                    new_moves.push(m);
-                }
+                new_moves.push(Self::new(p_c));
                 let mut p_c = p.clone();
                 p_c.insert(
                     i,
                     InstructionContainer::new(Instruction::Load {
                         register: 3,
-                        variable: variable,
+                        variable,
                     }),
                 );
-                if let Some(m) = Self::new(p_c, vm) {
-                    new_moves.push(m);
-                }
+                new_moves.push(Self::new(p_c));
             }
             if let Instruction::Store {
                 register: _,
@@ -147,9 +161,7 @@ impl ProgramState {
                         variable,
                     }),
                 );
-                if let Some(m) = Self::new(p_c, vm) {
-                    new_moves.push(m);
-                }
+                new_moves.push(Self::new(p_c));
                 let mut p_c = p.clone();
                 p_c.insert(
                     i,
@@ -158,9 +170,7 @@ impl ProgramState {
                         variable,
                     }),
                 );
-                if let Some(m) = Self::new(p_c, vm) {
-                    new_moves.push(m);
-                }
+                new_moves.push(Self::new(p_c));
             }
         }
 
@@ -205,7 +215,9 @@ pub fn mcts(
     vm: &mut VirtualMachine,
     real: &(usize, Vec<String>),
 ) -> Option<(u32, Option<Program>)> {
-    let mut root = Node::new(ProgramState::new(program, vm).expect("Error in root"));
+    let mut root_program = ProgramState::new(program);
+    root_program.exe(vm).expect("Error in root");
+    let mut root = Node::new(root_program);
     let best_run = u32::MIN;
     let mut best_out: Option<(u32, Option<Program>)> = None;
     for epoch in 1..5000 {
@@ -227,7 +239,7 @@ fn mcts_node(
 ) -> (u32, Option<Program>) {
     let better = if node.leaf() {
         // Expand, simulate
-        let new_states = node.state.next_moves(vm);
+        let new_states = node.state.next_moves();
         for new_state in new_states {
             if !node.children.contains_key(&new_state) {
                 node.children
@@ -268,7 +280,7 @@ fn mcts_simulate(
     let mut max_program: Option<Program> = None;
 
     for _ in 0..500 {
-        let next_states = rollout_state.next_moves(vm);
+        let next_states = rollout_state.next_moves();
 
         if next_states.is_empty() {
             break;
@@ -278,6 +290,9 @@ fn mcts_simulate(
 
         rollout_state = next_state;
 
+        if rollout_state.exe(vm).is_err() {
+            continue;
+        }
         let new_r = rollout_state.reward(real);
         if new_r > max_reward && new_r > 0 {
             max_reward = new_r;
