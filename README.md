@@ -26,10 +26,9 @@ There are several redundant memory operations. Removing them will improve the pe
 This uses machine learning to find optimisations which can be applied to the program. The resultant program is:
 
 ```
-SetReg { register: 1, constant: 1 } # Set r1 to 1
-Add { rega: 0, regb: 1, outreg: 0 } # Add r0 to r1, store result in r0
-Add { rega: 0, regb: 1, outreg: 0 } # Add r0 to r1, store result in r0
-Output(0) # output v0
+SetReg { register: 0, constant: 1 } # Set r0 to 1
+Add { rega: 0, regb: 0, outreg: 0 } # Redundant add operation (should have been removed)
+Output(0)
 ```
 
 This reduces the compiler's cost function from 14 to 4.
@@ -50,10 +49,7 @@ Output(0)
 The MCTS optimiser will eliminate the loop entirely:
 
 ```
-Add { rega: 0, regb: 1, outreg: 0 }
-Add { rega: 0, regb: 1, outreg: 0 }
-SetReg { register: 1, constant: 1000 }
-Add { rega: 1, regb: 0, outreg: 0 }
+SetReg { register: 0, constant: 1000 }
 Output(0)
 ```
 
@@ -61,7 +57,7 @@ The result of this optimisation is a 99% improvement on the compilers internal c
 
 ### Automatic vectorisation
 
-Automatic vectorisation is still very basic with mcts optimiser and an ongoing area of resarch. It cannot reliably idenfify vectoriastion opportunities. Here is an example of a pairwise addition of two vectors:
+Automatic vectorisation is still very basic with mcts optimiser and an ongoing area of resarch. It cannot reliably idenfify vectoriastion opportunities. Another issue is that the search space starts to become **very** large (so large that my laptop can only handle so many iterations before it kills the process). A solution for this is a function approximator. Here is an example of a pairwise addition of two vectors:
 
 Origial code:
 

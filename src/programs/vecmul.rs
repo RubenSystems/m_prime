@@ -49,14 +49,14 @@ pub fn prog() -> Program {
     let vec_a_offset = 0;
     let vec_b_offset = 10;
     let vec_c_offset = 20;
-    let mut a_init = create_vector(vec_a_offset, vec![1, 2, 3, 4, 5]);
-    let b_init = create_vector(vec_b_offset, vec![1, 2, 3, 4, 5]);
+    // let mut a_init = create_vector(vec_a_offset, vec![1, 2, 3, 4, 5]);
+    // let b_init = create_vector(vec_b_offset, vec![1, 2, 3, 4, 5]);
     let zip: Vec<Instruction> = (0..5)
         .flat_map(|x| add_and_store(x + vec_a_offset, x + vec_b_offset, x + vec_c_offset))
         .collect();
 
-    a_init.extend(b_init);
-    a_init.extend(zip);
+    // a_init.extend(b_init);
+    // a_init.extend(zip);
     // a_init.extend(prog);
-    Program::new(a_init)
+    Program::new(zip)
 }

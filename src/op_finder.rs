@@ -12,6 +12,125 @@ struct ProgramState {
     out: Option<(usize, Vec<String>)>,
 }
 
+// Diffing representation
+//
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+enum Action {
+    Remove(usize),
+    Replace(usize, Instruction),
+    Add(usize, Instruction),
+    Move(usize, usize),
+    Nothing,
+}
+
+impl Instruction {
+    fn instruction_replacements(&self) -> Vec<Instruction> {
+        match self {
+            Instruction::Add { rega, regb, outreg } => (0..4)
+                .flat_map(|a| {
+                    (0..4)
+                        .flat_map(|b| {
+                            (0..4)
+                                .map(|o| Instruction::Add {
+                                    rega: a,
+                                    regb: b,
+                                    outreg: 0,
+                                })
+                                .collect::<Vec<Instruction>>()
+                        })
+                        .collect::<Vec<Instruction>>()
+                })
+                .collect(),
+            Instruction::Sub { rega, regb, outreg } => (0..4)
+                .flat_map(|a| {
+                    (0..4)
+                        .flat_map(|b| {
+                            (0..4)
+                                .map(|o| Instruction::Sub {
+                                    rega: a,
+                                    regb: b,
+                                    outreg: 0,
+                                })
+                                .collect::<Vec<Instruction>>()
+                        })
+                        .collect::<Vec<Instruction>>()
+                })
+                .collect(),
+            Instruction::Var(a) => vec![Instruction::Var(*a)],
+            Instruction::Load { register, variable } => (0..4)
+                .map(|i| Instruction::Load {
+                    register: i,
+                    variable: *variable,
+                })
+                .collect(),
+            Instruction::Store { register, variable } => (0..4)
+                .map(|i| Instruction::Store {
+                    register: i,
+                    variable: *variable,
+                })
+                .collect(),
+            Instruction::SetReg { register, constant } => (0..4)
+                .map(|i| Instruction::SetReg {
+                    register: i,
+                    constant: *constant,
+                })
+                .collect(),
+            Instruction::VecAdd {
+                a1r,
+                b1r,
+                r1,
+                a2r,
+                b2r,
+                r2,
+            } => vec![],
+            Instruction::PCSetIfNotZero {
+                register,
+                jump_point,
+            } => vec![Instruction::PCSetIfNotZero {
+                register: *register,
+                jump_point: *jump_point,
+            }],
+            Instruction::Output(_) => vec![
+                Instruction::Output(0),
+                Instruction::Output(1),
+                Instruction::Output(2),
+                Instruction::Output(3),
+            ],
+        }
+    }
+}
+
+impl Program {
+    fn apply_action(mut self, action: &Action) -> Self {
+        match action {
+            Action::Remove(idx) => {
+                self.remove(*idx);
+            }
+            Action::Replace(idx, new) => {
+                self.insert(*idx, InstructionContainer::new(*new));
+            }
+            Action::Add(idx, new) => {
+                self.insert(*idx, InstructionContainer::new(*new));
+            }
+            Action::Nothing => {}
+            Action::Move(from, to) => {
+                let rem = InstructionContainer::new(self.remove(*from));
+                self.insert(*to, rem);
+            }
+        };
+        self
+    }
+
+    fn apply(mut self, actions: &Vec<Action>) -> Self {
+        for action in actions {
+            self = self.apply_action(action)
+        }
+
+        self
+    }
+}
+
 impl ProgramState {
     fn new(program: Program) -> Self {
         Self { out: None, program }
@@ -25,6 +144,12 @@ impl ProgramState {
             }
             Err(e) => Err(e),
         }
+    }
+
+    fn applying(&self, actions: &Vec<Action>) -> Self {
+        let mut new = self.clone();
+        new.program = new.program.apply(actions);
+        new
     }
 
     fn requires_exe(&self) -> bool {
@@ -66,129 +191,97 @@ impl ProgramState {
         }
     }
 
-    pub fn next_moves(&self) -> Vec<Self> {
+    pub fn next_moves(&self) -> Vec<Action> {
         let mut new_moves = vec![];
 
-        // Removals
-        for i in 0..self.program.len() {
-            let mut p = self.program.clone();
-            p.remove(i);
-            new_moves.push(Self::new(p));
-        }
+        new_moves.extend(
+            (0..self.program.len())
+                .map(|idx| Action::Remove(idx))
+                .collect::<Vec<Action>>(),
+        );
         // Replacements
-        for i in 0..self.program.len() {
-            let mut p = self.program.clone();
-            let instr = p.remove(i);
+        // new_moves.extend(
+        //     (0..self.program.len())
+        //         .flat_map(|idx| {
+        //             self.program
+        //                 .get(idx)
+        //                 .unwrap()
+        //                 .code()
+        //                 .instruction_replacements()
+        //                 .into_iter()
+        //                 .map(|rep| Action::Replace(idx, rep))
+        //                 .collect::<Vec<Action>>()
+        //         })
+        //         .collect::<Vec<Action>>(),
+        // );
 
-            for rep in vec![
-                Instruction::Add {
-                    rega: 0,
-                    regb: 1,
-                    outreg: 0,
-                },
-                Instruction::Add {
-                    rega: 1,
-                    regb: 0,
-                    outreg: 0,
-                },
-                Instruction::Add {
-                    rega: 1,
-                    regb: 0,
-                    outreg: 1,
-                },
-                Instruction::Add {
-                    rega: 1,
-                    regb: 0,
-                    outreg: 1,
-                },
-                Instruction::VecAdd {
-                    a1r: 0,
-                    b1r: 1,
-                    r1: 0,
-                    a2r: 2,
-                    b2r: 3,
-                    r2: 1,
-                },
-                Instruction::VecAdd {
-                    a1r: 0,
-                    b1r: 1,
-                    r1: 1,
-                    a2r: 2,
-                    b2r: 3,
-                    r2: 0,
-                },
-            ] {
-                let mut p_c = p.clone();
-                p_c.insert(i, InstructionContainer::new(rep));
-                new_moves.push(Self::new(p_c));
-            }
+        // Additions
+        //
+        // come on this is a mess
+        // This is probally the wors
+        // code i have ever written and
+        // i will change it soon. Please
+        // do not look at this and instead
+        // go directly to the end of
+        // this code block
+        // let mut vec_instr = vec![];
+        // for a in 0..4 {
+        //     for b in 0..4 {
+        //         for c in 0..4 {
+        //             for d in 0..4 {
+        //                 for e in 0..2 {
+        //                     for f in 0..2 {
+        //                         vec_instr.push(Instruction::VecAdd {
+        //                             a1r: a,
+        //                             b1r: b,
+        //                             r1: e,
+        //                             a2r: c,
+        //                             b2r: d,
+        //                             r2: f,
+        //                         });
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        // new_moves.extend(
+        //     (0..self.program.len())
+        //         .flat_map(|x| {
+        //             vec_instr
+        //                 .iter()
+        //                 .map(|y| Action::Add(x, y.clone()))
+        //                 .collect::<Vec<Action>>()
+        //         })
+        //         .collect::<Vec<Action>>(),
+        // );
 
-            // Fill out other registers
-            if let Instruction::Load {
-                register: _,
-                variable,
-            } = instr
-            {
-                let mut p_c = p.clone();
-                p_c.insert(
-                    i,
-                    InstructionContainer::new(Instruction::Load {
-                        register: 2,
-                        variable,
-                    }),
-                );
-                new_moves.push(Self::new(p_c));
-                let mut p_c = p.clone();
-                p_c.insert(
-                    i,
-                    InstructionContainer::new(Instruction::Load {
-                        register: 3,
-                        variable,
-                    }),
-                );
-                new_moves.push(Self::new(p_c));
-            }
-            if let Instruction::Store {
-                register: _,
-                variable,
-            } = instr
-            {
-                let mut p_c = p.clone();
-                p_c.insert(
-                    i,
-                    InstructionContainer::new(Instruction::Store {
-                        register: 2,
-                        variable,
-                    }),
-                );
-                new_moves.push(Self::new(p_c));
-                let mut p_c = p.clone();
-                p_c.insert(
-                    i,
-                    InstructionContainer::new(Instruction::Store {
-                        register: 3,
-                        variable,
-                    }),
-                );
-                new_moves.push(Self::new(p_c));
-            }
-        }
+        // Shifting around
+        // new_moves.extend(
+        //     (0..self.program.len())
+        //         .flat_map(|from| {
+        //             (0..self.program.len())
+        //                 .map(|to| Action::Move(from, to))
+        //                 .collect::<Vec<Action>>()
+        //         })
+        //         .collect::<Vec<Action>>(),
+        // );
 
         new_moves
     }
 }
 
 struct Node {
-    state: ProgramState,
+    action: Action,
     visits: u32,
     wins: u32,
-    children: HashMap<ProgramState, Node>,
+    children: HashMap<Action, Node>,
 }
 
 impl Node {
-    fn new(state: ProgramState) -> Self {
+    fn new(action: Action) -> Self {
         Self {
-            state,
+            action,
             visits: 0,
             wins: 0,
             children: HashMap::new(),
@@ -214,20 +307,23 @@ pub fn mcts(
     program: Program,
     vm: &mut VirtualMachine,
     real: &(usize, Vec<String>),
+    epochs: usize,
+    rollout_count: usize,
 ) -> Option<(u32, Option<Program>)> {
     let mut root_program = ProgramState::new(program);
     root_program.exe(vm).expect("Error in root");
-    let mut root = Node::new(root_program);
-    let best_run = u32::MIN;
+    let mut root = Node::new(Action::Nothing);
+    let mut best_run = u32::MIN;
     let mut best_out: Option<(u32, Option<Program>)> = None;
-    for epoch in 1..5000 {
-        let run = mcts_node(&mut root, vm, real);
+    for epoch in 1..epochs {
+        let run = mcts_node(&mut root, vm, real, &root_program, vec![], rollout_count);
+        println!("Epoch: {}, Op amount {}", epoch, best_run);
         if run.0 > best_run {
+            best_run = run.0;
             best_out = Some(run);
         }
-        if epoch % 100 == 0 {
-            println!("Epoch: {}", epoch / 100)
-        }
+        // if epoch % 100 == 0 {
+        // }
     }
     best_out
 }
@@ -236,10 +332,18 @@ fn mcts_node(
     node: &mut Node,
     vm: &mut VirtualMachine,
     real: &(usize, Vec<String>),
+    base_state: &ProgramState,
+    mut action_chain: Vec<Action>,
+    rollout_count: usize,
 ) -> (u32, Option<Program>) {
     let better = if node.leaf() {
         // Expand, simulate
-        let new_states = node.state.next_moves();
+        // if node.state.is_none() {
+        //     node.state = Some(base_state.applying(&action_chain));
+        // }
+        let node_state = base_state.applying(&action_chain); // can now be unwraped
+
+        let new_states = node_state.next_moves();
         for new_state in new_states {
             if !node.children.contains_key(&new_state) {
                 node.children
@@ -247,7 +351,14 @@ fn mcts_node(
             }
         }
         let random_action = node.children.iter_mut().choose(&mut thread_rng()).unwrap();
-        let reward = mcts_simulate(random_action.1, vm, real);
+        let reward = mcts_simulate(
+            random_action.1,
+            vm,
+            real,
+            base_state,
+            action_chain,
+            rollout_count,
+        );
         (reward.0.max(0) as u32, reward.1)
     } else {
         let best_child = node
@@ -261,10 +372,19 @@ fn mcts_node(
             })
             .unwrap()
             .1;
-        mcts_node(best_child, vm, real)
+
+        action_chain.push(best_child.action);
+        mcts_node(
+            best_child,
+            vm,
+            real,
+            base_state,
+            action_chain,
+            rollout_count,
+        )
     };
     node.visits += 1;
-    node.wins = better.0;
+    node.wins = if better.0 >= 1 { 1 } else { 0 };
 
     better
 }
@@ -273,22 +393,26 @@ fn mcts_simulate(
     node: &mut Node,
     vm: &mut VirtualMachine,
     real: &(usize, Vec<String>),
+    base_state: &ProgramState,
+    action_chain: Vec<Action>,
+    rollout_count: usize,
 ) -> (isize, Option<Program>) {
-    let mut rollout_state = node.state.clone();
+    // if node.state.is_none() {
+    //     node.state = Some(base_state.applying(&action_chain));
+    // }
+    let mut rollout_state = base_state.applying(&action_chain);
     let mut max_reward = isize::MIN;
 
     let mut max_program: Option<Program> = None;
-
-    for _ in 0..500 {
+    for _ in 0..rollout_count {
         let next_states = rollout_state.next_moves();
-
         if next_states.is_empty() {
             break;
         }
 
         let next_state = next_states.choose(&mut thread_rng()).unwrap().clone();
 
-        rollout_state = next_state;
+        rollout_state = rollout_state.applying(&vec![next_state]);
 
         if rollout_state.exe(vm).is_err() {
             continue;

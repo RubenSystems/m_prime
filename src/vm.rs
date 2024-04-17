@@ -6,6 +6,7 @@ const TIMEOUT: usize = 10000;
 
 pub struct VirtualMachine {
     register_count: usize,
+    base_memory: HashMap<usize, i32>,
 }
 
 #[derive(Debug)]
@@ -17,7 +18,17 @@ pub enum ExecutionError {
 
 impl VirtualMachine {
     pub fn new(register_count: usize) -> Self {
-        Self { register_count }
+        Self {
+            register_count,
+            base_memory: HashMap::new(),
+        }
+    }
+
+    pub fn from_memory_state(register_count: usize, base_memory: HashMap<usize, i32>) -> Self {
+        Self {
+            register_count,
+            base_memory,
+        }
     }
 
     pub fn exe(&mut self, instructions: &Program) -> Result<(usize, Vec<String>), ExecutionError> {
@@ -27,7 +38,7 @@ impl VirtualMachine {
         let mut its = 0;
 
         let mut registers = vec![0; self.register_count];
-        let mut memory = HashMap::new();
+        let mut memory = self.base_memory.clone();
         let mut instruction_counter = HashMap::new();
 
         loop {
